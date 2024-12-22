@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String     @id @default(uuid())
+  name      String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  content   Content[]
+  drawings  Drawing[]
+  referrals Referral[]
+  users     User[]     @relation("organizationToUser")
+}
+
+model User {
+  id              String         @id @default(uuid())
+  email           String         @unique
+  name            String?
+  imageUrl        String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  role            UserRole       @default(CLIENT)
+  orgId           String?
+  password        String
+  Account         Account[]
+  content         Content[]
+  contentShares   ContentShare[]
+  createdDrawings Drawing[]      @relation("createdDrawings")
+  drawingEntries  DrawingEntry[]
+  notifications   Notification[]
+  referrals       Referral[]
+  referralNotes   ReferralNote[]
+  Session         Session[]
+  organization    Organization?  @relation("organizationToUser", fields: [orgId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model Content {
+  id           String         @id @default(uuid())
+  title        String
+  description  String?
+  type         ContentType
+  url          String
+  thumbnail    String?
+  points       Int            @default(0)
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  userId       String
+  orgId        String
+  organization Organization   @relation(fields: [orgId], references: [id])
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shares       ContentShare[]
+
+  @@index([orgId])
+  @@index([userId])
+}
+
+model ContentShare {
+  id          String        @id @default(uuid())
+  contentId   String
+  userId      String
+  platform    SharePlatform
+  shareUrl    String
+  trackingId  String        @unique
+  clicks      Int           @default(0)
+  engagements Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  content     Content       @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  title     String
+  message   String
+  data      Json?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  userId    String
+  type      NotificationType
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ReferralStatus {
+  id          String     @id @default(uuid())
+  name        String
+  color       String
+  description String?
+  order       Int        @default(0)
+  isDefault   Boolean    @default(false)
+  isSystem    Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  referrals   Referral[]
+}
+
+model Referral {
+  id            String         @id @default(uuid())
+  name          String
+  email         String
+  phone         String?
+  pointsAwarded Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  convertedAt   DateTime?
+  statusId      String
+  userId        String
+  orgId         String
+  organization  Organization   @relation(fields: [orgId], references: [id])
+  status        ReferralStatus @relation(fields: [statusId], references: [id])
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes         ReferralNote[]
+
+  @@index([orgId])
+  @@index([statusId])
+  @@index([userId])
+}
+
+model ReferralNote {
+  id         String   @id @default(uuid())
+  content    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  referralId String
+  userId     String
+  referral   Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([referralId])
+  @@index([userId])
+}
+
+model Drawing {
+  id                                          String         @id @default(uuid())
+  name                                        String
+  description                                 String?
+  prize                                       String
+  prizeDetails                                String?
+  rules                                       String?
+  startDate                                   DateTime
+  endDate                                     DateTime
+  drawDate                                    DateTime
+  minEntries                                  Int
+  maxEntries                                  Int?
+  status                                      DrawingStatus  @default(ACTIVE)
+  createdAt                                   DateTime       @default(now())
+  updatedAt                                   DateTime       @updatedAt
+  orgId                                       String
+  createdById                                 String
+  winnerId                                    String?        @unique
+  createdBy                                   User           @relation("createdDrawings", fields: [createdById], references: [id])
+  organization                                Organization   @relation(fields: [orgId], references: [id])
+  DrawingEntry_Drawing_winnerIdToDrawingEntry DrawingEntry?  @relation("drawingWinnerIdToDrawingEntry", fields: [winnerId], references: [id])
+  entries                                     DrawingEntry[]
+
+  @@index([createdById])
+  @@index([orgId])
+}
+
+model DrawingEntry {
+  id                                     String   @id @default(uuid())
+  createdAt                              DateTime @default(now())
+  updatedAt                              DateTime @updatedAt
+  drawingId                              String
+  userId                                 String
+  quantity                               Int      @default(1)
+  referenceId                            String?
+  Drawing_Drawing_winnerIdToDrawingEntry Drawing? @relation("drawingWinnerIdToDrawingEntry")
+  drawing                                Drawing  @relation(fields: [drawingId], references: [id])
+  user                                   User     @relation(fields: [userId], references: [id])
+
+  @@index([drawingId])
+  @@index([userId])
+}
+
+model Account {
+  id                String   @id
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
+  User              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  CLIENT
+}
+
+enum ContentType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  TEXT
+}
+
+enum SharePlatform {
+  FACEBOOK
+  TWITTER
+  LINKEDIN
+  OTHER
+}
+
+enum NotificationType {
+  POINTS_EARNED
+  REFERRAL_CONVERTED
+  DRAWING_WON
+}
+
+enum DrawingStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
